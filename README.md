@@ -12,6 +12,10 @@ https://github.com/users/R216YU/projects/3
 
 ## 利用技術
 
-- AWS Bedrock
-- AWS S3 Files
-- AWS CloudFront など
+- VPC 無料
+- Public Subnet 無料
+- CloudFront 無料枠
+- Bedrock 無料枠
+- S3 無料枠
+  - S3 Files 無料枠
+- Lambda 無料枠

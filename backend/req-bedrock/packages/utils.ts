@@ -2,13 +2,17 @@ import {
   BedrockRuntimeClient,
   InvokeModelCommand,
 } from "@aws-sdk/client-bedrock-runtime";
-import { S3 } from "@aws-sdk/client-s3";
-import { Payload } from "./types";
+import {
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { AllowedImageFormat, allowedImageFormats, Payload } from "./types";
 import { BEDROCK_MESSAGE_PROMPT } from "./prompts";
 import { REGION, MODEL_ID, BUCKET_NAME } from "./env";
 
 const bedrock = new BedrockRuntimeClient({ region: REGION });
-const s3 = new S3({ region: REGION });
+const s3 = new S3Client({ region: REGION });
 
 /**
  * Bedrockにメッセージを送信する
@@ -17,6 +21,7 @@ const s3 = new S3({ region: REGION });
  */
 export const sendMessageToBedrock = async (
   image_base64_string: string,
+  imageFormat: AllowedImageFormat,
 ): Promise<string> => {
   const payload: Payload = {
     messages: [
@@ -25,7 +30,7 @@ export const sendMessageToBedrock = async (
         content: [
           {
             image: {
-              format: "jpeg",
+              format: imageFormat,
               source: {
                 bytes: image_base64_string,
               },
@@ -70,12 +75,15 @@ export const sendMessageToBedrock = async (
  * @returns ダウンロードしたファイルの内容
  */
 export const downloadFromS3 = async (key: string): Promise<string> => {
-  const response = await s3.getObject({
-    Bucket: BUCKET_NAME,
-    Key: key,
-  });
+  const response = await s3.send(
+    new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    }),
+  );
 
-  const contentBase64String = await response.Body?.transformToString("base64");
+  const contentBase64String: string | undefined =
+    await response.Body?.transformToString("base64");
 
   if (!contentBase64String) {
     throw new Error("Failed to download content from S3");
@@ -90,19 +98,32 @@ export const downloadFromS3 = async (key: string): Promise<string> => {
  * @param key アップロード先のS3オブジェクトキー
  */
 export const uploadToS3 = async (content: string, key: string) => {
-  await s3.putObject({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    Body: content,
-    ContentType: "text/html",
-  });
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: content,
+      ContentType: "text/html",
+    }),
+  );
 };
 
 /**
- * Bedrockからの応答テキストをサニタイズする
+ * Bedrockから受け取った応答テキストの不要部分を削除する
  * @param html Bedrockからの応答HTML
- * @returns sanitized HTML string
+ * @returns parsed HTML string
  */
-export const sanitizeHtml = (html: string): string => {
+export const parseHtml = (html: string): string => {
   return html.replace(/^```html\s*/, "").replace(/\s*```$/, "");
+};
+
+/**
+ * S3から取得したファイルの拡張子を確認する
+ * @param format
+ * @returns boolean
+ */
+export const validateImageFormat = (
+  format: string,
+): format is AllowedImageFormat => {
+  return allowedImageFormats.includes(format as AllowedImageFormat);
 };

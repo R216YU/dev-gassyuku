@@ -1,10 +1,13 @@
-type ChatContent = {
+export type ChatContent = {
   text: string;
 };
 
-type MediaContent = {
+export const allowedImageFormats = ["jpeg", "png", "jpg"] as const;
+export type AllowedImageFormat = (typeof allowedImageFormats)[number];
+
+export type MediaContent = {
   image: {
-    format: "jpeg" | "png" | "jpg";
+    format: AllowedImageFormat;
     source: {
       bytes: string; // base64 encoded image data
     };

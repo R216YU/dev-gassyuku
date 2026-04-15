@@ -11,23 +11,6 @@ const bedrock = new BedrockRuntimeClient({ region: REGION });
 const s3 = new S3({ region: REGION });
 
 /**
- * 画像ファイルをBase64エンコードする
- * @param image 画像ファイル
- * @returns Base64エンコードされた文字列
- */
-export const encodeImageToBase64 = (image: File): Promise<string> => {
-  const reader = new FileReader();
-  return new Promise((resolve, reject) => {
-    reader.onloadend = () => {
-      const base64String = (reader.result as string).split(",")[1];
-      resolve(base64String);
-    };
-    reader.onerror = (error) => reject(error);
-    reader.readAsDataURL(image);
-  });
-};
-
-/**
  * Bedrockにメッセージを送信する
  * @param image_base64_string 送信する画像のBase64エンコード文字列
  * @returns Bedrockからの応答テキスト
@@ -117,7 +100,7 @@ export const uploadToS3 = async (content: string, key: string) => {
 
 /**
  * Bedrockからの応答テキストをサニタイズする
- * @param html
+ * @param html Bedrockからの応答HTML
  * @returns sanitized HTML string
  */
 export const sanitizeHtml = (html: string): string => {

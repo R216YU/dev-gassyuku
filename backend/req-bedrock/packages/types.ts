@@ -1,11 +1,10 @@
-export type ChatContent = {
+export type AllowedImageFormat = "jpeg" | "png" | "jpg";
+
+type ChatContent = {
   text: string;
 };
 
-export const allowedImageFormats = ["jpeg", "png", "jpg"] as const;
-export type AllowedImageFormat = (typeof allowedImageFormats)[number];
-
-export type MediaContent = {
+type MediaContent = {
   image: {
     format: AllowedImageFormat;
     source: {
@@ -22,7 +21,4 @@ export type Payload = {
     role: string;
     content: (ChatContent | MediaContent)[];
   }[];
-  inferenceConfig?: {
-    max_new_tokens: number;
-  };
 };

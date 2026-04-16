@@ -7,7 +7,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { AllowedImageFormat, allowedImageFormats, Payload } from "./types";
+import { AllowedImageFormat, Payload } from "./types";
 import { BEDROCK_MESSAGE_PROMPT } from "./prompts";
 import { REGION, MODEL_ID, BUCKET_NAME } from "./env";
 
@@ -42,9 +42,6 @@ export const sendMessageToBedrock = async (
         ],
       },
     ],
-    inferenceConfig: {
-      max_new_tokens: 1000,
-    },
   };
 
   const apiResponse = await bedrock.send(
@@ -115,15 +112,4 @@ export const uploadToS3 = async (content: string, key: string) => {
  */
 export const parseHtml = (html: string): string => {
   return html.replace(/^```html\s*/, "").replace(/\s*```$/, "");
-};
-
-/**
- * S3から取得したファイルの拡張子を確認する
- * @param format
- * @returns boolean
- */
-export const validateImageFormat = (
-  format: string,
-): format is AllowedImageFormat => {
-  return allowedImageFormats.includes(format as AllowedImageFormat);
 };

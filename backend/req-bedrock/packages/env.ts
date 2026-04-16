@@ -2,4 +2,4 @@
 
 export const REGION = "ap-northeast-1";
 export const MODEL_ID = "amazon.nova-lite-v1:0";
-export const BUCKET_NAME = "test-bedrock-bucket-dev-gassyuku";
+export const BUCKET_NAME = "req-bedrock-trigger-419212279945";

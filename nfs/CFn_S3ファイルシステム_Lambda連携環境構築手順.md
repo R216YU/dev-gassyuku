@@ -37,10 +37,22 @@
 
 ### デプロイ手順
 
+#### コンソール
+
 1. CloudFormation コンソール → **「スタックの作成」**
 2. テンプレートのアップロード → `vpc-nfs.yaml` を選択
 3. スタック名: 任意（例: `vpc-nfs`）
 4. パラメーターを確認して **「送信」**
+
+#### AWS CLI
+
+```bash
+aws cloudformation create-stack \
+  --stack-name dev-vpc-update-nfs \
+  --template-body file://nfs/vpc-nfs.yaml \
+  --parameters file://nfs/vpc-nfs-parameters.json \
+  --region ap-northeast-1
+```
 
 ### デプロイ後に確認する値
 
@@ -64,11 +76,35 @@
 
 ### デプロイ手順
 
+#### コンソール
+
 1. CloudFormation コンソール → **「スタックの作成」**
 2. テンプレートのアップロード → `s3files-nfs.yaml` を選択
 3. スタック名: 任意（例: `s3files`）
 4. パラメーターに Step 1 で控えた値を入力
 5. **「IAM リソースの作成を承認する」** にチェックを入れて **「送信」**
+
+#### AWS CLI
+
+vpc-nfs スタックの出力値を確認して `s3files-nfs-parameters.json` の `<...>` 部分を書き換える。
+
+```bash
+aws cloudformation describe-stacks \
+  --stack-name vpc-nfs \
+  --query "Stacks[0].Outputs" \
+  --region ap-northeast-1
+```
+
+パラメーターファイル編集後に実行:
+
+```bash
+aws cloudformation create-stack \
+  --stack-name s3files \
+  --template-body file://nfs/s3files-nfs.yaml \
+  --parameters file://nfs/s3files-nfs-parameters.json \
+  --capabilities CAPABILITY_IAM \
+  --region ap-northeast-1
+```
 
 ### デプロイ後に確認する値
 
@@ -121,11 +157,36 @@
 
 ### デプロイ手順
 
+#### コンソール
+
 1. CloudFormation コンソール → **「スタックの作成」**
 2. テンプレートのアップロード → `lambda-connect-nfs.yaml` を選択
 3. スタック名: 任意（例: `lambda-nfs`）
 4. パラメーターを入力
 5. **「IAM リソースの作成を承認する」** にチェックを入れて **「送信」**
+
+#### AWS CLI
+
+s3files スタックのアクセスポイント ARN を確認して `lambda-connect-nfs-parameters.json` の各値を書き換える。
+
+```bash
+aws cloudformation describe-stack-resource \
+  --stack-name s3files \
+  --logical-resource-id S3FilesAccessPoint \
+  --query "StackResourceDetail.PhysicalResourceId" \
+  --region ap-northeast-1
+```
+
+パラメーターファイル編集後に実行:
+
+```bash
+aws cloudformation create-stack \
+  --stack-name lambda-nfs \
+  --template-body file://nfs/lambda-connect-nfs.yaml \
+  --parameters file://nfs/lambda-connect-nfs-parameters.json \
+  --capabilities CAPABILITY_IAM \
+  --region ap-northeast-1
+```
 
 ---
 
@@ -159,82 +220,7 @@
 
 > **注意:** S3 バケットにオブジェクトが残っている場合、スタック削除前に手動でバケットを空にする必要がある。
 
----
-
-## CLI を使ったデプロイ（パラメーターファイル使用）
-
-コンソールの代わりに AWS CLI を使う場合は、各スタック用のパラメーターファイルを使用する。
-
-### 事前準備
-
-```bash
-# AWS CLI のプロファイルとリージョンを確認
-aws configure list
-```
-
-### Step 1: vpc-nfs スタックのデプロイ
-
-パラメーターはすべてデフォルト値のためそのまま実行可。
-
-```bash
-aws cloudformation deploy \
-  --template-file vpc-nfs.yaml \
-  --stack-name vpc-nfs \
-  --parameter-overrides file://vpc-nfs-parameters.json \
-  --capabilities CAPABILITY_IAM \
-  --region ap-northeast-1
-```
-
-### Step 2: s3files-nfs-parameters.json の編集
-
-vpc-nfs スタックの出力値を確認して `s3files-nfs-parameters.json` を編集する。
-
-```bash
-# vpc-nfs スタックの出力値を確認
-aws cloudformation describe-stacks \
-  --stack-name vpc-nfs \
-  --query "Stacks[0].Outputs" \
-  --region ap-northeast-1
-```
-
-`s3files-nfs-parameters.json` の `<...>` 部分を確認した値で書き換えてから実行:
-
-```bash
-aws cloudformation deploy \
-  --template-file s3files-nfs.yaml \
-  --stack-name s3files \
-  --parameter-overrides file://s3files-nfs-parameters.json \
-  --capabilities CAPABILITY_IAM \
-  --region ap-northeast-1
-```
-
-### Step 3: lambda-connect-nfs-parameters.json の編集
-
-事前に Lambda ZIP ファイルを S3 にアップロードしてから、以下を実施する。
-
-s3files スタックのアクセスポイント ARN を確認する。
-
-```bash
-# S3FilesAccessPoint の物理 ID（ARN）を確認
-aws cloudformation describe-stack-resource \
-  --stack-name s3files \
-  --logical-resource-id S3FilesAccessPoint \
-  --query "StackResourceDetail.PhysicalResourceId" \
-  --region ap-northeast-1
-```
-
-`lambda-connect-nfs-parameters.json` の各値を入力してから実行:
-
-```bash
-aws cloudformation deploy \
-  --template-file lambda-connect-nfs.yaml \
-  --stack-name lambda-nfs \
-  --parameter-overrides file://lambda-connect-nfs-parameters.json \
-  --capabilities CAPABILITY_IAM \
-  --region ap-northeast-1
-```
-
-### CLI でのスタック削除
+#### AWS CLI
 
 ```bash
 aws cloudformation delete-stack --stack-name lambda-nfs --region ap-northeast-1

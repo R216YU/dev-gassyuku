@@ -1,7 +1,7 @@
 [
   {
     "ParameterKey": "ProjectName",
-    "ParameterValue": "dev-gassyuku"
+    "ParameterValue": "dev-gassyuku-nfs-vpc"
   },
   {
     "ParameterKey": "VpcCidr",

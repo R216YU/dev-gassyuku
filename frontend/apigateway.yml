@@ -1,0 +1,40 @@
+openapi: 3.0.3
+info:
+  title: Apigateway's API
+  version: 1.0.0
+paths:
+  /upload:
+    post:
+      summary: ファイルをアップロードする
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: アップロードするファイル
+                filename:
+                  type: string
+                  description: 保存するファイル名
+            encoding:
+              file:
+                contentType: application/octet-stream
+      responses:
+        '200':
+          description: アップロード成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: ファイルをアップロードしました
+        '400':
+          description: 不正なリクエスト
+        '500':
+          description: サーバーエラー

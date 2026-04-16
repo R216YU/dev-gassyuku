@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: S3 image to Bedrock (Nova Lite) HTML summarizer
+
+Parameters:
+  LambdaCodeKey:
+    Type: String
+    Default: lambda.zip
+    Description: S3 key of the Lambda deployment package
+
+Resources:
+  LambdaCodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub req-bedrock-code-${AWS::AccountId}
+
+  TriggerBucket:
+    Type: AWS::S3::Bucket
+    DependsOn: S3InvokePermission
+    Properties:
+      BucketName: !Sub req-bedrock-trigger-${AWS::AccountId}
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt ReqBedrockFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: inputs/
+
+  ReqBedrockFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: req-bedrock-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: req-bedrock-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub arn:aws:s3:::req-bedrock-trigger-${AWS::AccountId}/inputs/*
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub arn:aws:s3:::req-bedrock-trigger-${AWS::AccountId}/outputs/*
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.nova-lite-v1:0
+
+  ReqBedrockFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: req-bedrock
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Ref LambdaCodeKey
+      Architectures:
+        - x86_64
+      Timeout: 120
+      MemorySize: 256
+      Role: !GetAtt ReqBedrockFunctionRole.Arn
+
+  S3InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ReqBedrockFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub arn:aws:s3:::req-bedrock-trigger-${AWS::AccountId}
+      SourceAccount: !Ref AWS::AccountId

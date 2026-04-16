@@ -1,0 +1,89 @@
+Parameters:
+  S3FilesAccessPointArn:
+    Type: String
+    Description: >
+      S3 FilesアクセスポイントのARN。
+      s3files-nfs.yaml デプロイ後、S3 Filesコンソール → アクセスポイント詳細 → ARN で確認。
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: "Lambda関数のZIPファイルを配置したS3バケット名。"
+  LambdaCodeS3Key:
+    Type: String
+    Description: "S3バケット内のZIPファイルのオブジェクトキー（例: lambda/nfsTest.zip）。"
+Resources:
+  IAMRoleNfsTestrolennxwpvmw:
+    UpdateReplacePolicy: "Delete"
+    Type: "AWS::IAM::Role"
+    DeletionPolicy: "Delete"
+    Properties:
+      Path: "/service-role/"
+      ManagedPolicyArns:
+      - "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+      - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      MaxSessionDuration: 3600
+      RoleName: "nfsTest-role-nnxwpvmw"
+      Policies:
+      - PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Resource:
+            - "arn:aws:s3:::dev-gassyuku-tokyo"
+            - "arn:aws:s3:::dev-gassyuku-tokyo/*"
+            Action:
+            - "s3:GetObject"
+            - "s3:PutObject"
+            - "s3:DeleteObject"
+            - "s3:ListBucket"
+            Effect: "Allow"
+          - Resource:
+            - !Ref S3FilesAccessPointArn
+            Action:
+            - "elasticfilesystem:ClientMount"
+            - "elasticfilesystem:ClientWrite"
+            - "elasticfilesystem:ClientRootAccess"
+            Effect: "Allow"
+        PolicyName: "Lambda-S3-NFS-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Action: "sts:AssumeRole"
+          Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+  LambdaFunctionNfsTest:
+    UpdateReplacePolicy: "Delete"
+    Type: "AWS::Lambda::Function"
+    DeletionPolicy: "Delete"
+    Properties:
+      MemorySize: 128
+      Description: ""
+      TracingConfig:
+        Mode: "PassThrough"
+      VpcConfig:
+        SecurityGroupIds:
+        - !ImportValue "dev-gassyuku-LambdaSG"
+        SubnetIds:
+        - !ImportValue "dev-gassyuku-PrivateSubnets"
+        Ipv6AllowedForDualStack: false
+      Timeout: 3
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: "Auto"
+      Handler: "lambda_function.lambda_handler"
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Role: !GetAtt IAMRoleNfsTestrolennxwpvmw.Arn
+      FileSystemConfigs:
+      - Arn: !Ref S3FilesAccessPointArn
+        LocalMountPath: "/mnt/s3"
+      FunctionName: "nfsTest"
+      Runtime: "python3.14"
+      PackageType: "Zip"
+      LoggingConfig:
+        LogFormat: "Text"
+        LogGroup: "/aws/lambda/nfsTest"
+      RecursiveLoop: "Terminate"
+      EphemeralStorage:
+        Size: 512
+      Architectures:
+      - "x86_64"

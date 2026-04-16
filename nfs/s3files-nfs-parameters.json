@@ -1,0 +1,10 @@
+[
+  {
+    "ParameterKey": "MountTargetSubnetId",
+    "ParameterValue": "<vpc-nfs スタック出力: dev-gassyuku-PrivateSubnets の値を入力>"
+  },
+  {
+    "ParameterKey": "MountTargetSecurityGroupId",
+    "ParameterValue": "<vpc-nfs スタック出力: dev-gassyuku-MountTargetSG の値を入力>"
+  }
+]

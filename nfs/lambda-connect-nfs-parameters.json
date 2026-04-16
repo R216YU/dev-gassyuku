@@ -1,0 +1,14 @@
+[
+  {
+    "ParameterKey": "S3FilesAccessPointArn",
+    "ParameterValue": "<s3files スタック リソース: S3FilesAccessPoint の物理ID（ARN）を入力>"
+  },
+  {
+    "ParameterKey": "LambdaCodeS3Bucket",
+    "ParameterValue": "<LambdaのZIPファイルを配置したS3バケット名を入力>"
+  },
+  {
+    "ParameterKey": "LambdaCodeS3Key",
+    "ParameterValue": "<ZIPファイルのオブジェクトキーを入力（例: lambda/nfsTest.zip）>"
+  }
+]

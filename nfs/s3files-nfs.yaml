@@ -1,28 +1,22 @@
-# -------------------------------------------------------
-# パラメーター（デプロイ時に指定する値）
-# -------------------------------------------------------
 Parameters:
+  S3BucketName:
+    Type: String
+    Default: "dev-gassyuku-tokyo"
+    Description: "Name of the S3 bucket to create."
   MountTargetSubnetId:
     Type: String
-    Description: >
-      マウントターゲットを配置するサブネットID。
-      VPCコンソール → サブネット で確認（ap-northeast-1a のもの）。
+    Description: "Subnet ID for the mount target."
   MountTargetSecurityGroupId:
     Type: String
-    Description: >
-      マウントターゲットに適用するセキュリティグループID（sg-s3files相当）。
-      VPCコンソール → セキュリティグループ で確認。
+    Description: "Security group ID for the mount target."
 
 Resources:
-  # -------------------------------------------------------
-  # S3 Files 用 IAM ポリシー
-  # -------------------------------------------------------
   S3FilesPolicy:
     Type: "AWS::IAM::ManagedPolicy"
     DeletionPolicy: "Delete"
     UpdateReplacePolicy: "Delete"
     Properties:
-      ManagedPolicyName: "S3FilesPolicy_fe6989"
+      ManagedPolicyName: "S3FilesPolicy"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -85,15 +79,12 @@ Resources:
             Resource:
               - "arn:aws:events:*:*:rule/*"
 
-  # -------------------------------------------------------
-  # S3 Files 用 IAM ロール
-  # -------------------------------------------------------
   S3FilesRole:
     Type: "AWS::IAM::Role"
     DeletionPolicy: "Delete"
     UpdateReplacePolicy: "Delete"
     Properties:
-      RoleName: "S3FilesRole_98b28e"
+      RoleName: "S3FilesRole"
       ManagedPolicyArns:
         - !Ref S3FilesPolicy
       AssumeRolePolicyDocument:
@@ -104,9 +95,6 @@ Resources:
               Service: "elasticfilesystem.amazonaws.com"
             Action: "sts:AssumeRole"
 
-  # -------------------------------------------------------
-  # S3 バケット
-  # -------------------------------------------------------
   S3BucketDevgassyukutokyo:
     UpdateReplacePolicy: "Delete"
     Type: "AWS::S3::Bucket"
@@ -117,7 +105,7 @@ Resources:
         IgnorePublicAcls: true
         BlockPublicPolicy: true
         BlockPublicAcls: true
-      BucketName: "dev-gassyuku-tokyo"
+      BucketName: !Ref S3BucketName
       VersioningConfiguration:
         Status: "Enabled"
       OwnershipControls:
@@ -132,9 +120,6 @@ Resources:
           ServerSideEncryptionByDefault:
             SSEAlgorithm: "AES256"
 
-  # -------------------------------------------------------
-  # S3 Files ファイルシステム
-  # -------------------------------------------------------
   S3FilesFileSystem:
     Type: "AWS::S3Files::FileSystem"
     DeletionPolicy: "Delete"
@@ -144,9 +129,6 @@ Resources:
       RoleArn: !GetAtt S3FilesRole.Arn
       AcceptBucketWarning: true
 
-  # -------------------------------------------------------
-  # マウントターゲット（AZ単位）
-  # -------------------------------------------------------
   S3FilesMountTarget:
     Type: "AWS::S3Files::MountTarget"
     DeletionPolicy: "Delete"
@@ -157,10 +139,6 @@ Resources:
       SecurityGroups:
         - !Ref MountTargetSecurityGroupId
 
-  # -------------------------------------------------------
-  # アクセスポイント
-  # ルートディレクトリパス /lambda → S3バケット内の lambda/ フォルダに対応
-  # -------------------------------------------------------
   S3FilesAccessPoint:
     Type: "AWS::S3Files::AccessPoint"
     DeletionPolicy: "Delete"
@@ -176,3 +154,13 @@ Resources:
           OwnerUid: "1000"
           OwnerGid: "1000"
           Permissions: "755"
+
+Outputs:
+  S3FilesAccessPointArn:
+    Value: !Sub
+      - "arn:aws:s3files:${AWS::Region}:${AWS::AccountId}:file-system/${FileSystemId}/access-point/${AccessPointId}"
+      - FileSystemId: !GetAtt S3FilesFileSystem.FileSystemId
+        AccessPointId: !GetAtt S3FilesAccessPoint.AccessPointId
+    Description: "ARN of the S3 Files access point."
+    Export:
+      Name: "s3files-AccessPointArn"

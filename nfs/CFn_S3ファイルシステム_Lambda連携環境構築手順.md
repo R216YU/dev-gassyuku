@@ -102,20 +102,27 @@ aws cloudformation create-stack \
   --stack-name s3files \
   --template-body file://nfs/s3files-nfs.yaml \
   --parameters file://nfs/s3files-nfs-parameters.json \
-  --capabilities CAPABILITY_IAM \
+  --capabilities CAPABILITY_NAMED_IAM \
   --region ap-northeast-1
 ```
 
 ### デプロイ後に確認する値
 
-スタックの **「リソース」タブ** から以下を控える（Step 3 で使用）。
+スタックの **「出力」タブ** から以下を控える（Step 3 で使用）。
 
-| 論理 ID | 確認する値 | 使用先 |
+| 出力キー | 確認する値 | 使用先 |
 |---|---|---|
-| `S3FilesAccessPoint` | 物理 ID（ARN 形式） | lambda-connect-nfs.yaml の `S3FilesAccessPointArn` |
+| `S3FilesAccessPointArn` | フル ARN | lambda-connect-nfs-parameters.json の `S3FilesAccessPointArn` |
 
-> ARN の形式例:
-> `arn:aws:s3files:ap-northeast-1:{アカウントID}:file-system/fs-xxxxxxxxxxxxxxxxx/access-point/fsap-xxxxxxxxxxxxxxxxx`
+#### AWS CLI で取得する場合
+
+```bash
+aws cloudformation describe-stacks \
+  --stack-name s3files \
+  --query "Stacks[0].Outputs[?OutputKey=='S3FilesAccessPointArn'].OutputValue" \
+  --output text \
+  --region ap-northeast-1
+```
 
 ---
 
@@ -184,7 +191,7 @@ aws cloudformation create-stack \
   --stack-name lambda-nfs \
   --template-body file://nfs/lambda-connect-nfs.yaml \
   --parameters file://nfs/lambda-connect-nfs-parameters.json \
-  --capabilities CAPABILITY_IAM \
+  --capabilities CAPABILITY_NAMED_IAM \
   --region ap-northeast-1
 ```
 

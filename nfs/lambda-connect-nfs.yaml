@@ -1,15 +1,28 @@
 Parameters:
-  S3FilesAccessPointArn:
+  LambdaFunctionName:
     Type: String
-    Description: >
-      S3 FilesアクセスポイントのARN。
-      s3files-nfs.yaml デプロイ後、S3 Filesコンソール → アクセスポイント詳細 → ARN で確認。
+    Default: "nfsTest"
+    Description: "Lambda function name."
+  LambdaRoleName:
+    Type: String
+    Default: "nfsTest-role"
+    Description: "IAM role name for the Lambda function."
+  S3BucketName:
+    Type: String
+    Default: "dev-gassyuku-tokyo"
+    Description: "S3 bucket name that the Lambda function accesses via S3 Files."
+  VpcLambdaSGExport:
+    Type: String
+    Description: "CloudFormation export name for the Lambda security group ID."
+  VpcPrivateSubnetExport:
+    Type: String
+    Description: "CloudFormation export name for the private subnet ID."
   LambdaCodeS3Bucket:
     Type: String
-    Description: "Lambda関数のZIPファイルを配置したS3バケット名。"
+    Description: "S3 bucket name where the Lambda ZIP file is stored."
   LambdaCodeS3Key:
     Type: String
-    Description: "S3バケット内のZIPファイルのオブジェクトキー（例: lambda/nfsTest.zip）。"
+    Description: "S3 object key of the Lambda ZIP file (e.g. lambda/nfsTest.zip)."
 Resources:
   IAMRoleNfsTestrolennxwpvmw:
     UpdateReplacePolicy: "Delete"
@@ -21,14 +34,14 @@ Resources:
       - "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
       - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
       MaxSessionDuration: 3600
-      RoleName: "nfsTest-role-nnxwpvmw"
+      RoleName: !Ref LambdaRoleName
       Policies:
       - PolicyDocument:
           Version: "2012-10-17"
           Statement:
           - Resource:
-            - "arn:aws:s3:::dev-gassyuku-tokyo"
-            - "arn:aws:s3:::dev-gassyuku-tokyo/*"
+            - !Sub "arn:aws:s3:::${S3BucketName}"
+            - !Sub "arn:aws:s3:::${S3BucketName}/*"
             Action:
             - "s3:GetObject"
             - "s3:PutObject"
@@ -36,7 +49,7 @@ Resources:
             - "s3:ListBucket"
             Effect: "Allow"
           - Resource:
-            - !Ref S3FilesAccessPointArn
+            - !ImportValue "s3files-AccessPointArn"
             Action:
             - "elasticfilesystem:ClientMount"
             - "elasticfilesystem:ClientWrite"
@@ -61,9 +74,9 @@ Resources:
         Mode: "PassThrough"
       VpcConfig:
         SecurityGroupIds:
-        - !ImportValue "dev-gassyuku-LambdaSG"
+        - Fn::ImportValue: !Ref VpcLambdaSGExport
         SubnetIds:
-        - !ImportValue "dev-gassyuku-PrivateSubnets"
+        - Fn::ImportValue: !Ref VpcPrivateSubnetExport
         Ipv6AllowedForDualStack: false
       Timeout: 3
       RuntimeManagementConfig:
@@ -74,9 +87,9 @@ Resources:
         S3Key: !Ref LambdaCodeS3Key
       Role: !GetAtt IAMRoleNfsTestrolennxwpvmw.Arn
       FileSystemConfigs:
-      - Arn: !Ref S3FilesAccessPointArn
+      - Arn: !ImportValue "s3files-AccessPointArn"
         LocalMountPath: "/mnt/s3"
-      FunctionName: "nfsTest"
+      FunctionName: !Ref LambdaFunctionName
       Runtime: "python3.14"
       PackageType: "Zip"
       LoggingConfig:

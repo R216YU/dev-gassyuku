@@ -1,14 +1,30 @@
 [
   {
-    "ParameterKey": "S3FilesAccessPointArn",
-    "ParameterValue": "<s3files スタック リソース: S3FilesAccessPoint の物理ID（ARN）を入力>"
+    "ParameterKey": "LambdaFunctionName",
+    "ParameterValue": "nfs-cfn"
+  },
+  {
+    "ParameterKey": "LambdaRoleName",
+    "ParameterValue": "nfs-role"
+  },
+  {
+    "ParameterKey": "S3BucketName",
+    "ParameterValue": "dev-gassyuku-nfs"
+  },
+  {
+    "ParameterKey": "VpcLambdaSGExport",
+    "ParameterValue": "dev-gassyuku-nfs-vpc-LambdaSG"
+  },
+  {
+    "ParameterKey": "VpcPrivateSubnetExport",
+    "ParameterValue": "dev-gassyuku-nfs-vpc-PrivateSubnets"
   },
   {
     "ParameterKey": "LambdaCodeS3Bucket",
-    "ParameterValue": "<LambdaのZIPファイルを配置したS3バケット名を入力>"
+    "ParameterValue": "dev-gassyuku-tokyo"
   },
   {
     "ParameterKey": "LambdaCodeS3Key",
-    "ParameterValue": "<ZIPファイルのオブジェクトキーを入力（例: lambda/nfsTest.zip）>"
+    "ParameterValue": "lambda/lambda_function.zip"
   }
 ]

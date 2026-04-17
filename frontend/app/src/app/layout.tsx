@@ -18,6 +18,8 @@ export const metadata: Metadata = {
 };
 
 import ThemeRegistry from "./ThemeRegistry";
+import Navigation from "./Navigation";
+import { Box } from "@mui/material";
 
 export default function RootLayout({
   children,
@@ -26,9 +28,25 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body>
+      <body style={{ backgroundColor: '#f1f5f9', margin: 0 }}>
         <ThemeRegistry>
-          {children}
+          {/* 中央カラムラッパー */}
+          <Box 
+            sx={{ 
+              maxWidth: 800, 
+              mx: 'auto', 
+              bgcolor: 'white', 
+              minHeight: '100vh',
+              boxShadow: '0 0 50px rgba(0,0,0,0.05)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <Navigation />
+            <Box component="main" sx={{ flexGrow: 1 }}>
+              {children}
+            </Box>
+          </Box>
         </ThemeRegistry>
       </body>
     </html>

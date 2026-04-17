@@ -18,3 +18,13 @@ export const uploadFile = async (file: File) => {
 
   return response.data;
 };
+
+export const fetchFileList = async (): Promise<string[]> => {
+  try {
+    const response = await axios.get('/outputs/list.json');
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (error) {
+    console.error('Failed to fetch file list:', error);
+    return [];
+  }
+};

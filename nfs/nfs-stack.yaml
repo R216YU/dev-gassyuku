@@ -1,0 +1,370 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Lambda S3 Files (NFS) integration environment"
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: "dev-gassyuku-nfs"
+    Description: "Project name for resource tagging."
+  VpcCidr:
+    Type: String
+    Default: "10.0.0.0/16"
+    Description: "CIDR block for the VPC."
+  PrivateSubnet1Cidr:
+    Type: String
+    Default: "10.0.10.0/24"
+    Description: "CIDR block for the private subnet."
+  S3BucketName:
+    Type: String
+    Default: "dev-gassyuku-nfs"
+    Description: "S3 bucket name for S3 Files and Lambda access."
+  LambdaFunctionName:
+    Type: String
+    Default: "nfs-cfn"
+    Description: "Lambda function name."
+  LambdaRoleName:
+    Type: String
+    Default: "nfs-role"
+    Description: "IAM role name for the Lambda function."
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: "S3 bucket name where the Lambda ZIP file is stored."
+  LambdaCodeS3Key:
+    Type: String
+    Description: "S3 object key of the Lambda ZIP file (e.g. lambda/lambda_function.zip)."
+
+Resources:
+
+  # -------------------------------------------------------
+  # VPC
+  # -------------------------------------------------------
+  VPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: "Name"
+        Value: !Sub "${ProjectName}-vpc"
+
+  PrivateSubnet1:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      CidrBlock: !Ref PrivateSubnet1Cidr
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      VpcId: !Ref VPC
+      Tags:
+      - Key: "Name"
+        Value: !Sub "${ProjectName}-private-1"
+
+  PrivateRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: "Name"
+        Value: !Sub "${ProjectName}-private-rt"
+
+  PrivateSubnet1Association:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  S3Endpoint:
+    Type: "AWS::EC2::VPCEndpoint"
+    Properties:
+      VpcEndpointType: "Gateway"
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      RouteTableIds:
+      - !Ref PrivateRouteTable
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: "Allow"
+          Principal: "*"
+          Action: "s3:*"
+          Resource:
+          - "arn:aws:s3:::*"
+          Condition:
+            StringEquals:
+              s3:ResourceAccount: !Sub "${AWS::AccountId}"
+
+  LambdaSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Security group for Lambda functions"
+      VpcId: !Ref VPC
+      Tags:
+      - Key: "Name"
+        Value: !Sub "${ProjectName}-lambda-sg"
+
+  MountTargetSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    DeletionPolicy: "Delete"
+    UpdateReplacePolicy: "Delete"
+    Properties:
+      GroupDescription: "Security group for S3 Files mount target"
+      VpcId: !Ref VPC
+      Tags:
+      - Key: "Name"
+        Value: !Sub "${ProjectName}-mount-target-sg"
+
+  LambdaToMountTargetEgress:
+    Type: "AWS::EC2::SecurityGroupEgress"
+    DeletionPolicy: "Delete"
+    UpdateReplacePolicy: "Delete"
+    Properties:
+      GroupId: !Ref LambdaSecurityGroup
+      IpProtocol: "tcp"
+      FromPort: 2049
+      ToPort: 2049
+      DestinationSecurityGroupId: !Ref MountTargetSecurityGroup
+
+  MountTargetFromLambdaIngress:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    DeletionPolicy: "Delete"
+    UpdateReplacePolicy: "Delete"
+    Properties:
+      GroupId: !Ref MountTargetSecurityGroup
+      IpProtocol: "tcp"
+      FromPort: 2049
+      ToPort: 2049
+      SourceSecurityGroupId: !Ref LambdaSecurityGroup
+
+  # -------------------------------------------------------
+  # S3 / S3 Files
+  # -------------------------------------------------------
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    DeletionPolicy: "Delete"
+    UpdateReplacePolicy: "Delete"
+    Properties:
+      BucketName: !Ref S3BucketName
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      VersioningConfiguration:
+        Status: "Enabled"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          BlockedEncryptionTypes:
+            EncryptionType:
+            - "SSE-C"
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+
+  S3FilesPolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    DeletionPolicy: "Delete"
+    UpdateReplacePolicy: "Delete"
+    Properties:
+      ManagedPolicyName: "S3FilesPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "S3BucketPermissions"
+            Effect: "Allow"
+            Action:
+              - "s3:ListBucket*"
+            Resource: !GetAtt S3Bucket.Arn
+            Condition:
+              StringEquals:
+                aws:ResourceAccount: !Sub "${AWS::AccountId}"
+          - Sid: "S3ObjectPermissions"
+            Effect: "Allow"
+            Action:
+              - "s3:AbortMultipartUpload"
+              - "s3:DeleteObject*"
+              - "s3:GetObject*"
+              - "s3:List*"
+              - "s3:PutObject*"
+            Resource: !Sub "arn:aws:s3:::${S3Bucket}/*"
+            Condition:
+              StringEquals:
+                aws:ResourceAccount: !Sub "${AWS::AccountId}"
+          - Sid: "UseKmsKeyWithS3Files"
+            Effect: "Allow"
+            Action:
+              - "kms:GenerateDataKey"
+              - "kms:Encrypt"
+              - "kms:Decrypt"
+              - "kms:ReEncryptFrom"
+              - "kms:ReEncryptTo"
+            Condition:
+              StringLike:
+                "kms:ViaService": !Sub "s3.${AWS::Region}.amazonaws.com"
+                "kms:EncryptionContext:aws:s3:arn":
+                  - !Sub "arn:aws:s3:::${S3Bucket}"
+                  - !Sub "arn:aws:s3:::${S3Bucket}/*"
+            Resource: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:*"
+          - Sid: "EventBridgeManage"
+            Effect: "Allow"
+            Action:
+              - "events:DeleteRule"
+              - "events:DisableRule"
+              - "events:EnableRule"
+              - "events:PutRule"
+              - "events:PutTargets"
+              - "events:RemoveTargets"
+            Condition:
+              StringEquals:
+                events:ManagedBy: "elasticfilesystem.amazonaws.com"
+            Resource:
+              - "arn:aws:events:*:*:rule/DO-NOT-DELETE-S3-Files*"
+          - Sid: "EventBridgeRead"
+            Effect: "Allow"
+            Action:
+              - "events:DescribeRule"
+              - "events:ListRuleNamesByTarget"
+              - "events:ListRules"
+              - "events:ListTargetsByRule"
+            Resource:
+              - "arn:aws:events:*:*:rule/*"
+
+  S3FilesRole:
+    Type: "AWS::IAM::Role"
+    DeletionPolicy: "Delete"
+    UpdateReplacePolicy: "Delete"
+    Properties:
+      RoleName: "S3FilesRole"
+      ManagedPolicyArns:
+        - !Ref S3FilesPolicy
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "elasticfilesystem.amazonaws.com"
+            Action: "sts:AssumeRole"
+
+  S3FilesFileSystem:
+    Type: "AWS::S3Files::FileSystem"
+    DeletionPolicy: "Delete"
+    UpdateReplacePolicy: "Delete"
+    Properties:
+      Bucket: !GetAtt S3Bucket.Arn
+      RoleArn: !GetAtt S3FilesRole.Arn
+      AcceptBucketWarning: true
+
+  S3FilesMountTarget:
+    Type: "AWS::S3Files::MountTarget"
+    DeletionPolicy: "Delete"
+    UpdateReplacePolicy: "Delete"
+    Properties:
+      FileSystemId: !GetAtt S3FilesFileSystem.FileSystemId
+      SubnetId: !Ref PrivateSubnet1
+      SecurityGroups:
+        - !Ref MountTargetSecurityGroup
+
+  S3FilesAccessPoint:
+    Type: "AWS::S3Files::AccessPoint"
+    DeletionPolicy: "Delete"
+    UpdateReplacePolicy: "Delete"
+    Properties:
+      FileSystemId: !GetAtt S3FilesFileSystem.FileSystemId
+      PosixUser:
+        Uid: "1000"
+        Gid: "1000"
+      RootDirectory:
+        Path: "/lambda"
+        CreationPermissions:
+          OwnerUid: "1000"
+          OwnerGid: "1000"
+          Permissions: "755"
+
+  # -------------------------------------------------------
+  # Lambda
+  # -------------------------------------------------------
+  LambdaIAMRole:
+    Type: "AWS::IAM::Role"
+    DeletionPolicy: "Delete"
+    UpdateReplacePolicy: "Delete"
+    Properties:
+      Path: "/service-role/"
+      RoleName: !Ref LambdaRoleName
+      ManagedPolicyArns:
+      - "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+      - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      MaxSessionDuration: 3600
+      Policies:
+      - PolicyName: "Lambda-S3-NFS-role"
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: "Allow"
+            Action:
+            - "s3:GetObject"
+            - "s3:PutObject"
+            - "s3:DeleteObject"
+            - "s3:ListBucket"
+            Resource:
+            - !GetAtt S3Bucket.Arn
+            - !Sub "${S3Bucket.Arn}/*"
+          - Effect: "Allow"
+            Action:
+            - "elasticfilesystem:ClientMount"
+            - "elasticfilesystem:ClientWrite"
+            - "elasticfilesystem:ClientRootAccess"
+            Resource: !Sub
+              - "arn:aws:s3files:${AWS::Region}:${AWS::AccountId}:file-system/${FileSystemId}/access-point/${AccessPointId}"
+              - FileSystemId: !GetAtt S3FilesFileSystem.FileSystemId
+                AccessPointId: !GetAtt S3FilesAccessPoint.AccessPointId
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action: "sts:AssumeRole"
+
+  LambdaFunction:
+    Type: "AWS::Lambda::Function"
+    DeletionPolicy: "Delete"
+    UpdateReplacePolicy: "Delete"
+    DependsOn:
+      - S3FilesMountTarget
+    Properties:
+      FunctionName: !Ref LambdaFunctionName
+      Runtime: "python3.14"
+      Handler: "lambda_function.lambda_handler"
+      Role: !GetAtt LambdaIAMRole.Arn
+      MemorySize: 128
+      Timeout: 3
+      PackageType: "Zip"
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      VpcConfig:
+        SecurityGroupIds:
+        - !Ref LambdaSecurityGroup
+        SubnetIds:
+        - !Ref PrivateSubnet1
+        Ipv6AllowedForDualStack: false
+      FileSystemConfigs:
+      - Arn: !Sub
+          - "arn:aws:s3files:${AWS::Region}:${AWS::AccountId}:file-system/${FileSystemId}/access-point/${AccessPointId}"
+          - FileSystemId: !GetAtt S3FilesFileSystem.FileSystemId
+            AccessPointId: !GetAtt S3FilesAccessPoint.AccessPointId
+        LocalMountPath: "/mnt/s3"
+      Description: ""
+      TracingConfig:
+        Mode: "PassThrough"
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: "Auto"
+      LoggingConfig:
+        LogFormat: "Text"
+        LogGroup: !Sub "/aws/lambda/${LambdaFunctionName}"
+      RecursiveLoop: "Terminate"
+      EphemeralStorage:
+        Size: 512
+      Architectures:
+      - "x86_64"
